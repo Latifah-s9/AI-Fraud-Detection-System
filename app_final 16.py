@@ -20,16 +20,24 @@ except Exception as e:
     st.error("⚠️ لم يتم العثور على النموذج! تأكد من تشغيل ملف train_model.py أولاً.")
     st.stop()
 
-# دالة التحقق من الأعمدة
+# دالة تعديل الأعمدة تلقائيًا (محدثة)
 def normalize_uploaded_df(df):
-    expected = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
+    expected = [f"V{i}" for i in range(1, 29)] + ["Amount"]
     lower_cols = [c.lower() for c in df.columns]
+
+    # تجاهل عمود Time إن وُجد لأنه مو مستخدم في التدريب
+    if "time" in lower_cols:
+        df = df.drop(columns=[df.columns[lower_cols.index("time")]])
+
     missing = [col for col in expected if col.lower() not in lower_cols]
     extra = [col for col in df.columns if col.lower() not in [e.lower() for e in expected]]
+
     if "class" in lower_cols:
         df = df.drop(columns=[df.columns[lower_cols.index("class")]])
+
     for m in missing:
         df[m] = 0
+
     df = df[[c for c in expected if c in df.columns]]
     return df, missing, extra
 
