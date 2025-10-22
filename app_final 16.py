@@ -8,53 +8,57 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import matplotlib.pyplot as plt
 
 # إعداد الصفحة
-st.set_page_config(page_title="AI Fraud Detection System", layout="wide")
+st.set_page_config(page_title="💳 AI Fraud Detection System", layout="wide")
 st.title("🛡️ AI Fraud Detection System")
 
 # تحميل النموذج
 try:
     model = joblib.load("model.pkl")
 except Exception as e:
-    st.error("⚠️ لم يتم العثور على النموذج! درّبي النموذج أولًا.")
+    st.error("⚠️ لم يتم العثور على النموذج! درّب النموذج أولاً باستخدام train_model.py.")
     st.stop()
 
-# دالة لتوحيد الأعمدة في الملف
+# دالة لتوحيد البيانات وحذف الأعمدة الزائدة
 def normalize_uploaded_df(df):
-    expected = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
+    expected = [f"V{i}" for i in range(1, 29)] + ["Amount"]
     lower_cols = [c.lower() for c in df.columns]
     missing = [col for col in expected if col.lower() not in lower_cols]
     extra = [col for col in df.columns if col.lower() not in [e.lower() for e in expected]]
-    if "class" in lower_cols:
-        df = df.drop(columns=[df.columns[lower_cols.index("class")]])
+
+    # حذف أي أعمدة لا يحتاجها النموذج مثل "Time" أو "Class"
+    for col in extra:
+        if col.lower() in ["time", "class"]:
+            df = df.drop(columns=[col])
+
     for m in missing:
         df[m] = 0
+
     df = df[[c for c in expected if c in df.columns]]
     return df, missing, extra
 
-# رفع الملف
-uploaded = st.file_uploader("📤 Upload transactions CSV", type="csv")
+# واجهة رفع الملف
+uploaded = st.file_uploader("📂 Upload transactions CSV", type="csv")
 
 if uploaded is not None:
     try:
         data = pd.read_csv(uploaded)
-        st.subheader("📄 Data Preview")
+        st.subheader("📊 Data Preview")
         st.dataframe(data.head())
 
         X, missing_cols, extra_cols = normalize_uploaded_df(data)
+
         if missing_cols:
             st.warning(f"⚠️ Missing columns were filled automatically: {missing_cols}")
         if extra_cols:
             st.info(f"ℹ️ Extra columns ignored: {extra_cols}")
 
-        # التنبؤ
         preds = model.predict(X)
         if hasattr(model, "predict_proba"):
             probs = model.predict_proba(X)[:, 1]
             X["Fraud_Probability"] = probs
         X["Prediction"] = preds
 
-        # عرض النتائج
-        st.subheader("📊 Predictions Overview")
+        st.subheader("📈 Prediction Overview")
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("Total", len(X))
@@ -63,11 +67,10 @@ if uploaded is not None:
         with c3:
             st.metric("Normal", int((X["Prediction"] == 0).sum()))
 
-        fig = px.histogram(X, x="Prediction", title="📈 Prediction Distribution", 
-                           use_container_width=True)
+        fig = px.histogram(X, x="Prediction", title="📊 Prediction Distribution", use_container_width=True)
         st.plotly_chart(fig, use_container_width=True)
 
-        # 🔥 بديل SHAP — تحليل المزايا من XGBoost نفسه
+        # تحليل الذكاء الصناعي (بديل SHAP)
         try:
             st.subheader("🤖 Feature Importance (AI Insight)")
             booster = model.get_booster()
@@ -77,29 +80,29 @@ if uploaded is not None:
                 'Importance': list(importance.values())
             }).sort_values(by='Importance', ascending=False)
 
-            fig_imp = px.bar(imp_df.head(10),
-                             x='Importance', y='Feature',
-                             orientation='h',
-                             title='Top Contributing Features',
-                             color='Importance', color_continuous_scale='Blues')
+            fig_imp = px.bar(
+                imp_df.head(10),
+                x='Importance',
+                y='Feature',
+                orientation='h',
+                title='Top Contributing Features',
+                color='Importance',
+                color_continuous_scale='Blues'
+            )
             st.plotly_chart(fig_imp, use_container_width=True)
             st.success("✅ Feature importance analyzed successfully.")
         except Exception as e:
-            st.warning("⚠️ Feature importance could not be displayed for this model.")
+            st.warning("⚠️ Could not display feature importance.")
 
-        # الأداء (للتقييم الداخلي فقط)
+        # المقاييس (في حالة وجود Class)
         if "Class" in data.columns:
-            try:
-                y_true = data["Class"].astype(int)
-                acc = accuracy_score(y_true, preds)
-                pre = precision_score(y_true, preds, zero_division=0)
-                rec = recall_score(y_true, preds, zero_division=0)
-                f1 = f1_score(y_true, preds, zero_division=0)
-                st.caption(f"📈 Accuracy={acc:.4f} | Precision={pre:.4f} | Recall={rec:.4f} | F1={f1:.4f}")
-            except:
-                pass
+            y_true = data["Class"].astype(int)
+            acc = accuracy_score(y_true, preds)
+            pre = precision_score(y_true, preds, zero_division=0)
+            rec = recall_score(y_true, preds, zero_division=0)
+            f1 = f1_score(y_true, preds, zero_division=0)
+            st.caption(f"📊 Accuracy={acc:.4f} | Precision={pre:.4f} | Recall={rec:.4f} | F1={f1:.4f}")
 
-        # تحميل النتائج
         csv = X.to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Download Predictions", csv, "predictions.csv")
 
