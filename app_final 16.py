@@ -18,14 +18,14 @@ except Exception as e:
     st.error("⚠️ لم يتم العثور على النموذج! درّب النموذج أولاً باستخدام train_model.py.")
     st.stop()
 
-# دالة لتوحيد البيانات وحذف الأعمدة الزائدة
+# توحيد البيانات
 def normalize_uploaded_df(df):
     expected = [f"V{i}" for i in range(1, 29)] + ["Amount"]
     lower_cols = [c.lower() for c in df.columns]
     missing = [col for col in expected if col.lower() not in lower_cols]
     extra = [col for col in df.columns if col.lower() not in [e.lower() for e in expected]]
 
-    # حذف أي أعمدة لا يحتاجها النموذج مثل "Time" أو "Class"
+    # حذف الأعمدة غير المطلوبة
     for col in extra:
         if col.lower() in ["time", "class"]:
             df = df.drop(columns=[col])
@@ -36,7 +36,7 @@ def normalize_uploaded_df(df):
     df = df[[c for c in expected if c in df.columns]]
     return df, missing, extra
 
-# واجهة رفع الملف
+# رفع الملف
 uploaded = st.file_uploader("📂 Upload transactions CSV", type="csv")
 
 if uploaded is not None:
@@ -67,10 +67,11 @@ if uploaded is not None:
         with c3:
             st.metric("Normal", int((X["Prediction"] == 0).sum()))
 
-        fig = px.histogram(X, x="Prediction", title="📊 Prediction Distribution", use_container_width=True)
+        # الرسم البياني بدون use_container_width
+        fig = px.histogram(X, x="Prediction", title="📊 Prediction Distribution")
         st.plotly_chart(fig, use_container_width=True)
 
-        # تحليل الذكاء الصناعي (بديل SHAP)
+        # التحليل الذكي (بديل SHAP)
         try:
             st.subheader("🤖 Feature Importance (AI Insight)")
             booster = model.get_booster()
@@ -91,10 +92,10 @@ if uploaded is not None:
             )
             st.plotly_chart(fig_imp, use_container_width=True)
             st.success("✅ Feature importance analyzed successfully.")
-        except Exception as e:
+        except Exception:
             st.warning("⚠️ Could not display feature importance.")
 
-        # المقاييس (في حالة وجود Class)
+        # المقاييس إذا وُجد العمود Class
         if "Class" in data.columns:
             y_true = data["Class"].astype(int)
             acc = accuracy_score(y_true, preds)
